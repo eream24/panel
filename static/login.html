@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ورود · DNS Panel</title>
+<link rel="stylesheet" href="/static/style.css?v=3" />
+</head>
+<body class="login-body">
+  <form class="login-card" method="POST" action="/login">
+    <div class="brand" style="justify-content:center; margin-bottom: 18px;">
+      <div class="brand-dot"></div>
+      <div>
+        <div class="brand-title">DNS Panel</div>
+        <div class="brand-sub">mosdns query analyzer</div>
+      </div>
+    </div>
+    <div id="loginError" class="login-error" style="display:none;">نام کاربری یا رمز عبور اشتباه است.</div>
+    <label class="login-label">نام کاربری</label>
+    <input class="input" type="text" name="username" autofocus required />
+    <label class="login-label">رمز عبور</label>
+    <input class="input" type="password" name="password" required />
+    <button class="btn-primary" type="submit">ورود</button>
+  </form>
+  <script>
+    if (new URLSearchParams(location.search).get("error")) {
+      document.getElementById("loginError").style.display = "block";
+    }
+  </script>
+</body>
+</html>

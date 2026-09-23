@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DNS Panel · mosdns</title>
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-dot"></div>
+        <div>
+          <div class="brand-title">DNS Panel</div>
+          <div class="brand-sub">mosdns query analyzer</div>
+        </div>
+      </div>
+
+      <div class="nav">
+        <button class="nav-item active" data-view="overview">نمای کلی</button>
+        <button class="nav-item" data-view="clients">کاربران (IP)</button>
+        <button class="nav-item" data-view="contacts">دفترچه مخاطبین</button>
+        <button class="nav-item" data-view="search">جستجوی دامنه</button>
+        <button class="nav-item" data-view="recent">لاگ کوئری‌ها</button>
+      </div>
+
+      <div style="flex:1"></div>
+      <a class="logout-link" href="/logout">خروج از حساب</a>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div id="viewTitle">نمای کلی</div>
+        <div class="live-badge"><span class="dot"></span> Live</div>
+      </header>
+
+      <!-- ============ OVERVIEW ============ -->
+      <section id="view-overview" class="view active">
+        <div class="stat-grid" id="statGrid"></div>
+        <div class="panels">
+          <div class="panel">
+            <h3>پرتکرارترین دامنه‌ها</h3>
+            <div id="topDomains" class="bar-list"></div>
+          </div>
+          <div class="panel">
+            <h3>پرتکرارترین کاربران</h3>
+            <div id="topClients" class="bar-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ CLIENTS LIST (own page) ============ -->
+      <section id="view-clients" class="view">
+        <div class="filter-bar">
+          <input id="clientsQ" class="input" placeholder="جستجوی آی‌پی یا نام..." />
+          <label class="date-label">از <span id="clientsFrom" class="jalali-picker"></span></label>
+          <label class="date-label">تا <span id="clientsTo" class="jalali-picker"></span></label>
+          <button id="clientsFilterBtn" class="btn-secondary">اعمال فیلتر</button>
+          <div class="export-group" data-dataset="clients"></div>
+        </div>
+        <table class="table" id="clientsTable">
+          <thead>
+            <tr><th>نام / آی‌پی</th><th>نوع</th><th>تعداد کوئری</th><th>تعداد دامنه</th><th>اولین بازدید</th><th>آخرین بازدید</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="pagination" id="clientsPagination"></div>
+      </section>
+
+      <!-- ============ CLIENT DETAIL (domains for one ip) ============ -->
+      <section id="view-detail" class="view">
+        <button id="backToClients" class="btn-back">← بازگشت به لیست کاربران</button>
+        <div class="filter-bar">
+          <h2 id="selectedClientTitle" style="margin:0; flex:1;"></h2>
+        </div>
+        <div class="filter-bar">
+          <input id="domainFilter" class="input" placeholder="جستجوی دامنه در این آی‌پی..." />
+          <label class="date-label">از <span id="domainsFrom" class="jalali-picker"></span></label>
+          <label class="date-label">تا <span id="domainsTo" class="jalali-picker"></span></label>
+          <button id="domainsFilterBtn" class="btn-secondary">اعمال فیلتر</button>
+          <div class="export-group" data-dataset="domains"></div>
+        </div>
+        <table class="table" id="domainTable">
+          <thead>
+            <tr><th>دامنه</th><th>تعداد</th><th>آخرین نتیجه</th><th>نوع</th><th>اولین بازدید</th><th>آخرین بازدید</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="pagination" id="domainsPagination"></div>
+      </section>
+
+      <!-- ============ CONTACTS ============ -->
+      <section id="view-contacts" class="view">
+        <div class="panel-header">
+          <h2>دفترچه مخاطبین</h2>
+        </div>
+        <div id="vpnSyncStatus" class="export-hint" style="margin-bottom:12px;"></div>
+        <form id="contactForm" class="contact-form">
+          <input id="contactIp" class="input" placeholder="آی‌پی (مثلاً 10.0.0.5)" required />
+          <input id="contactName" class="input" placeholder="نام مخاطب" required />
+          <button type="submit" class="btn-primary">افزودن / ویرایش</button>
+        </form>
+        <table class="table" id="contactsTable">
+          <thead>
+            <tr><th>نام</th><th>آی‌پی</th><th>نوع</th><th>منبع</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <!-- ============ SEARCH ============ -->
+      <section id="view-search" class="view">
+        <div class="filter-bar">
+          <input id="searchBox" class="input" placeholder="مثلاً: instagram.com" />
+          <label class="date-label">از <span id="searchFrom" class="jalali-picker"></span></label>
+          <label class="date-label">تا <span id="searchTo" class="jalali-picker"></span></label>
+          <button id="searchFilterBtn" class="btn-secondary">اعمال فیلتر</button>
+          <div class="export-group" data-dataset="search"></div>
+        </div>
+        <table class="table" id="searchTable">
+          <thead>
+            <tr><th>زمان</th><th>کاربر</th><th>دامنه</th><th>نوع</th><th>نتیجه</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="pagination" id="searchPagination"></div>
+      </section>
+
+      <!-- ============ RECENT / FULL LOG ============ -->
+      <section id="view-recent" class="view">
+        <div class="filter-bar">
+          <label class="date-label">از <span id="recentFrom" class="jalali-picker"></span></label>
+          <label class="date-label">تا <span id="recentTo" class="jalali-picker"></span></label>
+          <button id="recentFilterBtn" class="btn-secondary">اعمال فیلتر</button>
+          <button id="recentRefreshBtn" class="btn-secondary">تازه‌سازی</button>
+          <div class="export-group" data-dataset="recent"></div>
+        </div>
+        <table class="table" id="recentTable">
+          <thead>
+            <tr><th>زمان</th><th>کاربر</th><th>دامنه</th><th>نوع</th><th>نتیجه</th><th>زمان پاسخ</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="pagination" id="recentPagination"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
