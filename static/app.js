@@ -2,16 +2,8 @@ const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
 // ---------------------------------------------------------------------------
-// Jalali (Shamsi) calendar support.
-//
-// We don't hand-roll leap-year math: we lean entirely on the browser's own
-// ICU Persian-calendar implementation (Intl.DateTimeFormat with
-// 'en-US-u-ca-persian'), which is exactly what fmtTs() already uses for
-// display elsewhere in the panel. To convert a chosen Jalali date back to
-// Gregorian (needed to build the actual date_from/date_to filter values the
-// API expects), we start from a close arithmetic guess and iteratively
-// correct it by re-checking that guess against the same ICU conversion,
-// so the two directions can never disagree with what's shown on screen.
+// Jalali (Shamsi) calendar support — unchanged from before, still leans on
+// the browser's own ICU Persian-calendar implementation.
 // ---------------------------------------------------------------------------
 
 const JALALI_MONTHS = ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
@@ -44,15 +36,13 @@ function jalaliYearLength(jy) {
 function jalaliMonthLength(jy, jm) {
   if (jm <= 6) return 31;
   if (jm <= 11) return 30;
-  return jalaliYearLength(jy) - 336; // 336 = 6*31 + 5*30 (Farvardin..Bahman)
+  return jalaliYearLength(jy) - 336;
 }
 
-// Find the Gregorian Y-M-D (Tehran wall-clock) for a given Jalali date.
 function gregorianYMDFromJalali(jy, jm, jd) {
   const approxGregorianYear = jy + 621;
-  const guess = new Date(Date.UTC(approxGregorianYear, 2, 21, 12, 0, 0)); // ~Farvardin 1, noon UTC
+  const guess = new Date(Date.UTC(approxGregorianYear, 2, 21, 12, 0, 0));
   guess.setUTCDate(guess.getUTCDate() + jalaliDayOfYear(jm, jd) - 1);
-
   for (let iter = 0; iter < 6; iter++) {
     const p = jalaliPartsInTehran(guess);
     const diffDays = (p.jy - jy) * 365 + (jalaliDayOfYear(p.jm, p.jd) - jalaliDayOfYear(jm, jd));
@@ -60,14 +50,10 @@ function gregorianYMDFromJalali(jy, jm, jd) {
     guess.setUTCDate(guess.getUTCDate() - diffDays);
   }
   const isoFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tehran", year: "numeric", month: "2-digit", day: "2-digit" });
-  return isoFmt.format(guess); // "YYYY-MM-DD"
+  return isoFmt.format(guess);
 }
 
-function range(a, b) {
-  const out = [];
-  for (let i = a; i <= b; i++) out.push(i);
-  return out;
-}
+function range(a, b) { const out = []; for (let i = a; i <= b; i++) out.push(i); return out; }
 
 function mountJalaliPicker(id) {
   const host = document.getElementById(id);
@@ -75,7 +61,6 @@ function mountJalaliPicker(id) {
   const nowJ = jalaliPartsInTehran(new Date());
   const opt = (v, label) => `<option value="${v}">${label}</option>`;
   const blank = '<option value="">--</option>';
-
   host.innerHTML = `
     <select class="jp jp-y">${blank}${range(nowJ.jy - 3, nowJ.jy + 1).map((y) => opt(y, y)).join("")}</select>
     <select class="jp jp-m">${blank}${JALALI_MONTHS.map((n, i) => opt(i + 1, n)).join("")}</select>
@@ -135,12 +120,15 @@ function mountAllJalaliPickers() {
     .forEach(mountJalaliPicker);
 }
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 const EXPORT_FORMATS = [
-  { fmt: "pdf", label: "PDF" },
-  { fmt: "xlsx", label: "Excel" },
-  { fmt: "csv", label: "CSV" },
-  { fmt: "txt", label: "TXT" },
+  { fmt: "pdf", label: "PDF", icon: "file" },
+  { fmt: "xlsx", label: "Excel", icon: "table" },
+  { fmt: "csv", label: "CSV", icon: "file-text" },
+  { fmt: "txt", label: "TXT", icon: "file-text" },
 ];
 
 const state = {
@@ -152,29 +140,46 @@ const state = {
   recent: { date_from: "", date_to: "", page: 1, page_size: 50, total: 0 },
 };
 
+function toEnDigits(str) {
+  if (typeof str !== "string") return str;
+  return str.replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d))
+            .replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d));
+}
+
+function fmtNum(n) {
+  if (n === null || n === undefined) return "0";
+  return Number(n).toLocaleString("en-US");
+}
+
 function fmtTs(ts) {
   if (!ts) return "-";
   const d = new Date(ts);
   if (isNaN(d)) return ts;
-  return d.toLocaleString("fa-IR-u-ca-persian", { hour12: false, timeZone: "Asia/Tehran" });
+  return toEnDigits(d.toLocaleString("fa-IR-u-ca-persian", { hour12: false, timeZone: "Asia/Tehran" }));
 }
 
 function rcodeBadge(name) {
   const ok = name === "NOERROR";
-  return `<span class="badge ${ok ? "ok" : "bad"}">${name}</span>`;
+  return `<span class="badge ${ok ? "ok" : "bad"}"><i data-lucide="${ok ? "check-circle-2" : "x-circle"}"></i>${name}</span>`;
 }
 
 function ipBadge(ipClass) {
   const labels = { user: "کاربر", server: "سرور", other: "-" };
-  return `<span class="ipbadge ${ipClass}">${labels[ipClass] || ipClass}</span>`;
+  const icons = { user: "user", server: "server", other: "circle-help" };
+  return `<span class="ipbadge ${ipClass}"><i data-lucide="${icons[ipClass] || "circle-help"}"></i>${labels[ipClass] || ipClass}</span>`;
 }
+
+function whoIcon(ipClass) {
+  const icon = ipClass === "server" ? "server" : "user";
+  const cls = ipClass === "server" ? "srv" : "";
+  return `<span class="ico ${cls}"><i data-lucide="${icon}"></i></span>`;
+}
+
+function icons() { if (window.lucide) lucide.createIcons(); }
 
 async function api(path, opts) {
   const res = await fetch(path, opts);
-  if (res.status === 401) {
-    window.location.href = "/login";
-    throw new Error("unauthorized");
-  }
+  if (res.status === 401) { window.location.href = "/login"; throw new Error("unauthorized"); }
   if (!res.ok) throw new Error(`API error ${res.status}`);
   if (res.status === 204) return null;
   return res.json();
@@ -182,9 +187,9 @@ async function api(path, opts) {
 
 // ---------------- export buttons ----------------
 function buildExportLinks(dataset, extraParams) {
-  return EXPORT_FORMATS.map(({ fmt, label }) => {
+  return EXPORT_FORMATS.map(({ fmt, label, icon }) => {
     const params = new URLSearchParams({ dataset, format: fmt, ...extraParams });
-    return `<a class="export-btn" href="/api/export?${params.toString()}" target="_blank" rel="noopener">${label}</a>`;
+    return `<a class="export-btn" href="/api/export?${params.toString()}" target="_blank" rel="noopener"><i data-lucide="${icon}"></i>${label}</a>`;
   }).join("");
 }
 
@@ -192,6 +197,7 @@ function renderExport(dataset, extra) {
   const el = document.querySelector(`.export-group[data-dataset="${dataset}"]`);
   if (!el) return;
   el.innerHTML = buildExportLinks(dataset, extra);
+  icons();
 }
 
 // ---------------- pagination ----------------
@@ -200,7 +206,7 @@ function renderPagination(containerId, s, onPageChange) {
   const totalPages = Math.max(1, Math.ceil(s.total / s.page_size));
   el.innerHTML = `
     <button ${s.page <= 1 ? "disabled" : ""} data-dir="prev">قبلی</button>
-    <span>صفحه ${s.page} از ${totalPages} — کل رکورد: ${s.total}</span>
+    <span>صفحه ${fmtNum(s.page)} از ${fmtNum(totalPages)} — کل رکورد: ${fmtNum(s.total)}</span>
     <button ${s.page >= totalPages ? "disabled" : ""} data-dir="next">بعدی</button>
   `;
   el.querySelectorAll("button").forEach((btn) =>
@@ -223,21 +229,66 @@ function setView(view) {
     contacts: "دفترچه مخاطبین", search: "جستجوی دامنه", recent: "لاگ کوئری‌ها",
   };
   $("#viewTitle").textContent = titles[view] || "";
+  $("#sidebar").classList.remove("mobile-open");
   refreshView();
 }
+window.setView = setView;
 
 $$(".nav-item").forEach((btn) => btn.addEventListener("click", () => setView(btn.dataset.view)));
 
+// ---------------- sidebar toggle ----------------
+$("#toggleSidebar").addEventListener("click", () => {
+  if (window.innerWidth <= 900) {
+    $("#sidebar").classList.toggle("mobile-open");
+  } else {
+    $("#app").classList.toggle("collapsed");
+  }
+});
+
 // ---------------- overview ----------------
+const STAT_ICONS = [
+  { key: "total_queries", label: "کل کوئری‌ها", icon: "bar-chart-2" },
+  { key: "unique_clients", label: "کاربران یکتا", icon: "users" },
+  { key: "unique_domains", label: "دامنه‌های یکتا", icon: "globe" },
+  { key: "last_24h", label: "۲۴ ساعت اخیر", icon: "clock" },
+  { key: "blocked_or_refused", label: "بلاک‌شده/رفیوز", icon: "shield-alert", warn: true },
+];
+
 async function loadOverview() {
   const s = await api("/api/stats");
-  $("#statGrid").innerHTML = `
-    ${statCard("کل کوئری‌ها", s.total_queries)}
-    ${statCard("کاربران یکتا", s.unique_clients)}
-    ${statCard("دامنه‌های یکتا", s.unique_domains)}
-    ${statCard("۲۴ ساعت اخیر", s.last_24h)}
-    ${statCard("بلاک‌شده/رفیوز", s.blocked_or_refused)}
+
+  $("#statGrid").innerHTML = STAT_ICONS.map((c) => `
+    <div class="stat-card">
+      <div class="icon-chip ${c.warn ? "warn" : ""}"><i data-lucide="${c.icon}"></i></div>
+      <div class="label">${c.label}</div>
+      <div class="value ${c.warn ? "warn" : ""}">${fmtNum(s[c.key])}</div>
+    </div>
+  `).join("");
+
+  $("#resultDistribution").innerHTML = `
+    <div class="result-item">
+      <div class="result-icon"><i data-lucide="check-circle-2"></i></div>
+      <div class="result-info">
+        <div class="result-label"><span>موفق (NOERROR)</span><span class="n">${fmtNum(s.success_count)} (${s.success_percent}%)</span></div>
+        <div class="result-bar"><div class="result-bar-fill" style="width:${s.success_percent}%"></div></div>
+      </div>
+    </div>
+    <div class="result-item">
+      <div class="result-icon error"><i data-lucide="x-circle"></i></div>
+      <div class="result-info">
+        <div class="result-label"><span>ناموفق (NXDOMAIN/REFUSED)</span><span class="n">${fmtNum(s.error_count)} (${s.error_percent}%)</span></div>
+        <div class="result-bar"><div class="result-bar-fill error" style="width:${s.error_percent}%"></div></div>
+      </div>
+    </div>
   `;
+
+  $("#quickStats").innerHTML = `
+    <div class="quick-stat-item"><div class="quick-stat-label"><i data-lucide="timer"></i><span>میانگین زمان پاسخ</span></div><div class="quick-stat-value">${s.avg_elapsed_ms ?? "-"} ms</div></div>
+    <div class="quick-stat-item"><div class="quick-stat-label"><i data-lucide="check-circle-2"></i><span>نرخ موفقیت</span></div><div class="quick-stat-value">${s.success_rate_percent}%</div></div>
+    <div class="quick-stat-item"><div class="quick-stat-label"><i data-lucide="trending-up"></i><span>پرتکرارترین دامنه</span></div><div class="quick-stat-value">${s.top_domains?.[0]?.qname ?? "-"}</div></div>
+    <div class="quick-stat-item"><div class="quick-stat-label"><i data-lucide="user"></i><span>فعال‌ترین کاربر</span></div><div class="quick-stat-value">${s.top_clients?.[0]?.display_name ?? "-"}</div></div>
+  `;
+
   const maxD = Math.max(1, ...s.top_domains.map((d) => d.count));
   $("#topDomains").innerHTML = s.top_domains.map((d) => barRow(d.qname, d.count, maxD)).join("");
   const maxC = Math.max(1, ...s.top_clients.map((c) => c.count));
@@ -247,49 +298,57 @@ async function loadOverview() {
   $$("[data-goto-client]").forEach((el) =>
     el.addEventListener("click", () => openClientDetail(el.dataset.gotoClient))
   );
-}
 
-function statCard(label, value) {
-  return `<div class="stat-card"><div class="label">${label}</div><div class="value">${value ?? 0}</div></div>`;
+  const recentData = await api("/api/recent?page_size=8");
+  $("#recentTableOverview tbody").innerHTML = recentData.rows.map((r) => `
+    <tr>
+      <td data-mono>${fmtTs(r.ts)}</td>
+      <td>${r.display_name}</td>
+      <td data-mono>${r.qname}</td>
+      <td>${rcodeBadge(r.rcode_name)}</td>
+      <td data-mono>${r.elapsed_ms ?? "-"} ms</td>
+    </tr>
+  `).join("");
+
+  const nowTehran = new Date().toLocaleString("en-US", { timeZone: "Asia/Tehran", hour: "2-digit", minute: "2-digit", hour12: false });
+  $("#lastUpdate").textContent = nowTehran;
+
+  icons();
 }
 
 function barRow(name, count, max) {
   const pct = Math.round((count / max) * 100);
-  return `<div class="bar-row"><span class="name">${name}</span><span>${count}</span>
+  return `<div class="bar-row"><span class="name">${name}</span><span class="count">${fmtNum(count)}</span>
     <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div></div>`;
 }
 
 function barRowClickable(name, count, max, ip) {
   const pct = Math.round((count / max) * 100);
-  return `<div class="bar-row" style="cursor:pointer" data-goto-client="${ip}">
-    <span class="name">${name}</span><span>${count}</span>
+  return `<div class="bar-row" style="cursor:pointer" data-goto-client="${ip}"><span class="name">${name}</span><span class="count">${fmtNum(count)}</span>
     <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div></div>`;
 }
 
 // ---------------- clients page ----------------
 async function loadClientsPage() {
   const s = state.clients;
-  const params = new URLSearchParams({
-    q: s.q, date_from: s.date_from, date_to: s.date_to, page: s.page, page_size: s.page_size,
-  });
+  const params = new URLSearchParams({ q: s.q, date_from: s.date_from, date_to: s.date_to, page: s.page, page_size: s.page_size });
   const data = await api(`/api/clients?${params.toString()}`);
   s.total = data.total;
-  $("#clientsTable tbody").innerHTML = data.rows
-    .map(
-      (c) => `<tr>
-        <td>${c.display_name}${c.display_name !== c.client_ip ? ` <span class="ip-sub" data-mono>(${c.client_ip})</span>` : ""}</td>
-        <td>${ipBadge(c.ip_class)}</td>
-        <td>${c.query_count}</td>
-        <td>${c.domain_count}</td>
-        <td>${fmtTs(c.first_seen)}</td>
-        <td>${fmtTs(c.last_seen)}</td>
-        <td><button class="row-link" data-open="${c.client_ip}">مشاهده دامنه‌ها</button></td>
-      </tr>`
-    )
-    .join("");
+  $("#clientsTable tbody").innerHTML = data.rows.map((c) => `
+    <tr>
+      <td><div class="who">${whoIcon(c.ip_class)}<div><div>${c.display_name}</div>${c.display_name !== c.client_ip ? `<div class="ip-sub" data-mono>${c.client_ip}</div>` : ""}</div></div></td>
+      <td>${ipBadge(c.ip_class)}</td>
+      <td data-mono>${fmtNum(c.query_count)}</td>
+      <td data-mono>${fmtNum(c.domain_count)}</td>
+      <td data-mono>${fmtTs(c.first_seen)}</td>
+      <td data-mono>${fmtTs(c.last_seen)}</td>
+      <td><button class="row-link" data-open="${c.client_ip}">مشاهده دامنه‌ها</button></td>
+    </tr>
+  `).join("");
   $$("[data-open]").forEach((btn) => btn.addEventListener("click", () => openClientDetail(btn.dataset.open)));
   renderPagination("clientsPagination", s, loadClientsPage);
   renderExport("clients", { q: s.q, date_from: s.date_from, date_to: s.date_to });
+  icons();
 }
 
 $("#clientsFilterBtn").addEventListener("click", () => {
@@ -301,7 +360,7 @@ $("#clientsFilterBtn").addEventListener("click", () => {
 });
 $("#clientsQ").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#clientsFilterBtn").click(); });
 
-// ---------------- client detail (domains) ----------------
+// ---------------- client detail ----------------
 function openClientDetail(ip) {
   state.selectedClient = ip;
   state.domains = { search: "", date_from: "", date_to: "", page: 1, page_size: 50, total: 0 };
@@ -310,6 +369,7 @@ function openClientDetail(ip) {
   $("#domainsTo").value = "";
   setView("detail");
 }
+window.openClientDetail = openClientDetail;
 
 $("#backToClients").addEventListener("click", () => setView("clients"));
 
@@ -317,30 +377,25 @@ async function loadClientDomains() {
   if (!state.selectedClient) return;
   const ip = state.selectedClient;
   const info = await api(`/api/clients/${encodeURIComponent(ip)}/info`);
-  const label = info.display_name;
-  const cls = info.ip_class;
-  $("#selectedClientTitle").innerHTML = `دامنه‌های بازدید شده توسط ${label} ${ipBadge(cls)} <span class="ip-sub" data-mono>(${ip})</span>`;
+  $("#selectedClientTitle").innerHTML = `دامنه‌های بازدید شده توسط ${info.display_name} ${ipBadge(info.ip_class)} <span class="ip-sub" data-mono>(${ip})</span>`;
 
   const s = state.domains;
-  const params = new URLSearchParams({
-    search: s.search, date_from: s.date_from, date_to: s.date_to, page: s.page, page_size: s.page_size,
-  });
+  const params = new URLSearchParams({ search: s.search, date_from: s.date_from, date_to: s.date_to, page: s.page, page_size: s.page_size });
   const data = await api(`/api/clients/${encodeURIComponent(ip)}/domains?${params.toString()}`);
   s.total = data.total;
-  $("#domainTable tbody").innerHTML = data.rows
-    .map(
-      (r) => `<tr>
-        <td data-mono>${r.qname}</td>
-        <td>${r.count}</td>
-        <td>${rcodeBadge(r.rcode_name)}</td>
-        <td>${r.qtypes.join(", ")}</td>
-        <td>${fmtTs(r.first_seen)}</td>
-        <td>${fmtTs(r.last_seen)}</td>
-      </tr>`
-    )
-    .join("");
+  $("#domainTable tbody").innerHTML = data.rows.map((r) => `
+    <tr>
+      <td data-mono>${r.qname}</td>
+      <td data-mono>${fmtNum(r.count)}</td>
+      <td>${rcodeBadge(r.rcode_name)}</td>
+      <td>${r.qtypes.join(", ")}</td>
+      <td data-mono>${fmtTs(r.first_seen)}</td>
+      <td data-mono>${fmtTs(r.last_seen)}</td>
+    </tr>
+  `).join("");
   renderPagination("domainsPagination", s, loadClientDomains);
   renderExport("domains", { ip, search: s.search, date_from: s.date_from, date_to: s.date_to });
+  icons();
 }
 
 $("#domainsFilterBtn").addEventListener("click", () => {
@@ -354,35 +409,34 @@ $("#domainFilter").addEventListener("keydown", (e) => { if (e.key === "Enter") $
 
 function sourceBadge(source) {
   return source === "synced"
-    ? '<span class="ipbadge server">خودکار (VPN)</span>'
-    : '<span class="ipbadge other">دستی</span>';
+    ? '<span class="ipbadge"><i data-lucide="wifi"></i>خودکار (VPN)</span>'
+    : '<span class="ipbadge other"><i data-lucide="pencil"></i>دستی</span>';
 }
 
 // ---------------- contacts ----------------
 async function loadContacts() {
   const status = await api("/api/vpn-sync/status");
-  $("#vpnSyncStatus").textContent = status.enabled
-    ? `همگام‌سازی خودکار با پنل ${status.panel_type} هر ${Math.round(status.interval_seconds / 60)} دقیقه فعاله.`
-    : "همگام‌سازی خودکار با پنل VPN غیرفعاله — مخاطبین رو دستی اضافه کن.";
+  $("#vpnSyncStatus").innerHTML = status.enabled
+    ? `<i data-lucide="wifi" style="width:13px;height:13px;display:inline;vertical-align:-2px"></i> همگام‌سازی خودکار با پنل ${status.panel_type} هر ${Math.round(status.interval_seconds / 60)} دقیقه فعاله.`
+    : `<i data-lucide="wifi-off" style="width:13px;height:13px;display:inline;vertical-align:-2px"></i> همگام‌سازی خودکار با پنل VPN غیرفعاله — مخاطبین رو دستی اضافه کن.`;
 
   const rows = await api("/api/contacts");
-  $("#contactsTable tbody").innerHTML = rows
-    .map(
-      (c) => `<tr>
-        <td>${c.name}</td>
-        <td data-mono>${c.ip}</td>
-        <td>${ipBadge(c.ip_class)}</td>
-        <td>${sourceBadge(c.source)}</td>
-        <td><button class="btn-sm" data-del="${c.ip}">حذف</button></td>
-      </tr>`
-    )
-    .join("");
+  $("#contactsTable tbody").innerHTML = rows.map((c) => `
+    <tr>
+      <td>${c.name}</td>
+      <td data-mono>${c.ip}</td>
+      <td>${ipBadge(c.ip_class)}</td>
+      <td>${sourceBadge(c.source)}</td>
+      <td><button class="btn-sm" data-del="${c.ip}">حذف</button></td>
+    </tr>
+  `).join("");
   $$("[data-del]").forEach((btn) =>
     btn.addEventListener("click", async () => {
       await api(`/api/contacts/${encodeURIComponent(btn.dataset.del)}`, { method: "DELETE" });
       loadContacts();
     })
   );
+  icons();
 }
 
 $("#contactForm").addEventListener("submit", async (e) => {
@@ -390,11 +444,7 @@ $("#contactForm").addEventListener("submit", async (e) => {
   const ip = $("#contactIp").value.trim();
   const name = $("#contactName").value.trim();
   if (!ip || !name) return;
-  await api("/api/contacts", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ip, name }),
-  });
+  await api("/api/contacts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ip, name }) });
   $("#contactIp").value = "";
   $("#contactName").value = "";
   loadContacts();
@@ -404,24 +454,22 @@ $("#contactForm").addEventListener("submit", async (e) => {
 async function loadDomainSearch() {
   const s = state.search;
   if (!s.q) { $("#searchTable tbody").innerHTML = ""; $("#searchPagination").innerHTML = ""; renderExport("search", {}); return; }
-  const params = new URLSearchParams({
-    q: s.q, date_from: s.date_from, date_to: s.date_to, page: s.page, page_size: s.page_size,
-  });
+  const params = new URLSearchParams({ q: s.q, date_from: s.date_from, date_to: s.date_to, page: s.page, page_size: s.page_size });
   const data = await api(`/api/search?${params.toString()}`);
   s.total = data.total;
-  $("#searchTable tbody").innerHTML = data.rows
-    .map(
-      (r) => `<tr>
-        <td>${fmtTs(r.ts)}</td>
-        <td>${r.display_name} ${ipBadge(r.ip_class)}</td>
-        <td data-mono>${r.qname}</td>
-        <td>${r.qtype_name}</td>
-        <td>${rcodeBadge(r.rcode_name)}</td>
-      </tr>`
-    )
-    .join("");
+  $("#searchTable tbody").innerHTML = data.rows.map((r) => `
+    <tr>
+      <td data-mono>${fmtTs(r.ts)}</td>
+      <td>${r.display_name}</td>
+      <td>${ipBadge(r.ip_class)}</td>
+      <td data-mono>${r.qname}</td>
+      <td>${r.qtype_name}</td>
+      <td>${rcodeBadge(r.rcode_name)}</td>
+    </tr>
+  `).join("");
   renderPagination("searchPagination", s, loadDomainSearch);
   renderExport("search", { q: s.q, date_from: s.date_from, date_to: s.date_to });
+  icons();
 }
 
 $("#searchFilterBtn").addEventListener("click", () => {
@@ -436,25 +484,23 @@ $("#searchBox").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#
 // ---------------- recent / full log ----------------
 async function loadRecent() {
   const s = state.recent;
-  const params = new URLSearchParams({
-    date_from: s.date_from, date_to: s.date_to, page: s.page, page_size: s.page_size,
-  });
+  const params = new URLSearchParams({ date_from: s.date_from, date_to: s.date_to, page: s.page, page_size: s.page_size });
   const data = await api(`/api/recent?${params.toString()}`);
   s.total = data.total;
-  $("#recentTable tbody").innerHTML = data.rows
-    .map(
-      (r) => `<tr>
-        <td>${fmtTs(r.ts)}</td>
-        <td>${r.display_name} ${ipBadge(r.ip_class)}</td>
-        <td data-mono>${r.qname}</td>
-        <td>${r.qtype_name}</td>
-        <td>${rcodeBadge(r.rcode_name)}</td>
-        <td>${r.elapsed_ms ?? "-"} ms</td>
-      </tr>`
-    )
-    .join("");
+  $("#recentTable tbody").innerHTML = data.rows.map((r) => `
+    <tr>
+      <td data-mono>${fmtTs(r.ts)}</td>
+      <td>${r.display_name}</td>
+      <td>${ipBadge(r.ip_class)}</td>
+      <td data-mono>${r.qname}</td>
+      <td>${r.qtype_name}</td>
+      <td>${rcodeBadge(r.rcode_name)}</td>
+      <td data-mono>${r.elapsed_ms ?? "-"} ms</td>
+    </tr>
+  `).join("");
   renderPagination("recentPagination", s, loadRecent);
   renderExport("recent", { date_from: s.date_from, date_to: s.date_to });
+  icons();
 }
 
 $("#recentFilterBtn").addEventListener("click", () => {
@@ -474,17 +520,17 @@ async function refreshView() {
     else if (state.view === "contacts") await loadContacts();
     else if (state.view === "search") await loadDomainSearch();
     else if (state.view === "recent") await loadRecent();
-  } catch (e) {
-    console.error(e);
-  }
+  } catch (e) { console.error(e); }
 }
 
+$("#btnRefresh").addEventListener("click", () => refreshView());
+
+// ---------------- boot ----------------
 async function boot() {
   mountAllJalaliPickers();
+  icons();
   await refreshView();
-  setInterval(() => {
-    if (state.view === "overview") loadOverview();
-  }, 10000);
+  setInterval(() => { if (state.view === "overview") loadOverview(); }, 15000);
 }
 
 boot();
